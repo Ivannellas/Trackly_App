@@ -3,7 +3,7 @@
     "name": "Trackly",
     "slug": "trackly",
     "scheme": "tracklyapp",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
@@ -37,8 +37,10 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "08210c31-f103-4fe5-8cfa-84ea391f26bc"
-      }
-    }
+        "projectId": "1c043622-ec64-4f48-9dfe-f10ce375ca7b"
+      },
+      "router": {}
+    },
+    "owner": "ivannellas"
   }
 }
