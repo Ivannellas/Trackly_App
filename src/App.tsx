@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Slot } from 'expo-router';
+import * as Updates from 'expo-updates'; // Import expo-updates
 import { AuthService, BiometricService } from './services';
 import { AuthScreen } from './screens/AuthScreen';
 import { Themes } from './styles';
@@ -51,6 +52,41 @@ export default function App() {
       checkBiometricStatus();
     }
   }, [session]);
+
+  // AUTOMATIC UPDATE CHECKER (Triggers only after app is unlocked)
+  useEffect(() => {
+    if (isUnlocked) {
+      handleAppUpdates();
+    }
+  }, [isUnlocked]);
+
+  const handleAppUpdates = async () => {
+    // Prevent running in local development mode
+    if (__DEV__) return;
+
+    try {
+      const update = await Updates.checkForUpdateAsync();
+      
+      if (update.isAvailable) {
+        Alert.alert(
+          'New Update Available!',
+          'Trackly has a new version with improvements and new features. Would you like to apply it now?',
+          [
+            { text: 'Later', style: 'cancel' },
+            {
+              text: 'Update Now',
+              onPress: async () => {
+                await Updates.fetchUpdateAsync(); // Downloads the update bundle
+                await Updates.reloadAsync();      // Reloads the app instantly
+              },
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.log("Error checking for updates: ", error);
+    }
+  };
 
   const handleAuthentication = async () => {
     try {
