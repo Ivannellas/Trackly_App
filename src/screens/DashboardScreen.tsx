@@ -1,5 +1,4 @@
-// Dashboard Screen - Executive summary with key metrics, charts, and recent activity
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react'; 
 import {
   View,
   Text,
@@ -23,7 +22,7 @@ import {
   ChartHeader,
 } from '../components';
 import { Theme, Transaction } from '../types';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native'; // 👈 Added useFocusEffect
 
 type ChartViewType = 'Daily' | 'Weekly' | 'Monthly';
 
@@ -46,18 +45,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   // State
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [chartView, setChartView] = useState<ChartViewType>('Weekly');
+  const [refreshing, setRefreshing] = useState(false);
 
   // Hooks
   const { transactions, fetchTransactions, deleteTransaction } = useTransactions(userId);
   const { budgets } = useBudgets();
   const { totalIncome, totalExpense } = useIncomeExpense(transactions, selectedDate);
 
-  // Fetch transactions on mount
-  useEffect(() => {
-    if (userId) {
-      fetchTransactions();
-    }
-  }, [userId]);
+  // 👈 Replaced old useEffect with useFocusEffect to trigger reload on view entry
+  useFocusEffect(
+    useCallback(() => {
+      if (userId && typeof fetchTransactions === 'function') {
+        fetchTransactions();
+      }
+    }, [userId, fetchTransactions])
+  );
 
   // Calculate balance
   const totalBalance = transactions.reduce((sum, item) => sum + parseFloat(item.amount.toString()), 0);
@@ -76,6 +78,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     try {
       await deleteTransaction(item.id);
       Alert.alert('Success', 'Transaction deleted');
+      // 👈 Local refresh immediately after deleting so the UI responds instantly
+      if (typeof fetchTransactions === 'function') {
+        await fetchTransactions();
+      }
     } catch (err) {
       Alert.alert('Error', 'Failed to delete transaction');
     }
@@ -138,22 +144,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     return { labels, datasets: [{ data }] };
   };
 
-  // State for the pull-to-refresh indicator
-const [refreshing, setRefreshing] = useState(false);
-
-// Function to handle the refresh action
-const onRefresh = React.useCallback(async () => {
-  setRefreshing(true);
-  try {
-    if (userId) {
-      await fetchTransactions(); // Refetch data from Supabase
+  // Function to handle manual pull-to-refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      if (userId && typeof fetchTransactions === 'function') {
+        await fetchTransactions(); 
+      }
+    } catch (error) {
+      console.error("Refresh error:", error);
+    } finally {
+      setRefreshing(false);
     }
-  } catch (error) {
-    console.error("Refresh error:", error);
-  } finally {
-    setRefreshing(false);
-  }
-}, [userId]);
+  }, [userId, fetchTransactions]);
 
   return (
     <SafeAreaView style={[sharedStyles.container, { backgroundColor: theme.background }]}>
@@ -256,7 +259,7 @@ const onRefresh = React.useCallback(async () => {
 
           <BarChart
             data={getChartData()}
-            width={screenWidth -80}
+            width={screenWidth - 80}
             height={220}
             yAxisLabel="₱"
             yAxisSuffix=""

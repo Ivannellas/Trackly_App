@@ -89,6 +89,21 @@ export const LocalStorageService = {
     const saved = await AsyncStorage.getItem(this.SAVINGS_KEY);
     return saved ? JSON.parse(saved) : [];
   },
+
+  // Add this inside the LocalStorageService object in your transactions.ts file:
+
+  PRESETS_KEY: '@quick_add_presets',
+
+  async savePresets(presets: { fare: string; lunch: string }) {
+    const AsyncStorage = await import('@react-native-async-storage/async-storage').then(m => m.default);
+    await AsyncStorage.setItem(this.PRESETS_KEY, JSON.stringify(presets));
+  },
+
+  async getPresets() {
+    const AsyncStorage = await import('@react-native-async-storage/async-storage').then(m => m.default);
+    const saved = await AsyncStorage.getItem(this.PRESETS_KEY);
+    return saved ? JSON.parse(saved) : { fare: '15', lunch: '50' }; // fallback to your current defaults
+  },
 };
 
 // Biometric authentication service
@@ -117,3 +132,4 @@ export const BiometricService = {
     return await AsyncStorage.getItem(this.SNOOZE_KEY);
   },
 };
+

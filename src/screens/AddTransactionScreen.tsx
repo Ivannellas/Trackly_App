@@ -1,5 +1,4 @@
-// Add Transaction Screen - Dedicated screen for adding new transactions
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,13 +8,16 @@ import {
   ScrollView,
   Keyboard,
   StatusBar,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native'; // Import useFocusEffect for auto-refresh on screen focus
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { sharedStyles, Themes } from '../styles';
 import { useTransactions, useCategories, useBudgets } from '../hooks';
+import { LocalStorageService } from '../services/transactions';
 import { Theme } from '../types';
 
 interface AddTransactionScreenProps {
@@ -32,9 +34,10 @@ export const AddTransactionScreen: React.FC<AddTransactionScreenProps> = ({
   onSignOut,
 }) => {
   const theme = Themes[themeMode];
-  const { addTransaction: hookAddTransaction } = useTransactions(userId);
+  // Note: Destructure refresh/mutate functions if your hooks provide them (e.g., refreshTransactions)
+  const { addTransaction: hookAddTransaction, fetchTransactions } = useTransactions(userId);
   const { categories } = useCategories(userId);
-  const { budgets } = useBudgets();
+  const { budgets } = useBudgets(); // Removed refresh since the hook doesn't export it
 
   const [amount, setAmount] = useState<string>('');
   const [description, setDescription] = useState<string>('');
@@ -43,20 +46,74 @@ export const AddTransactionScreen: React.FC<AddTransactionScreenProps> = ({
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
 
+  // Dynamic states for editable presets
   const [fareAmount, setFareAmount] = useState('15');
   const [lunchAmount, setLunchAmount] = useState('50');
+
+  // States to handle the cross-platform Edit Preset Modal
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingType, setEditingType] = useState<'fare' | 'lunch' | null>(null);
+  const [presetInput, setPresetInput] = useState('');
+
+  // Reusable function to fetch custom local presets
+  const loadPresets = useCallback(async () => {
+    try {
+      const savedPresets = await LocalStorageService.getPresets();
+      if (savedPresets) {
+        setFareAmount(savedPresets.fare || '15');
+        setLunchAmount(savedPresets.lunch || '50');
+      }
+    } catch (e) {
+      console.error("Failed to load presets", e);
+    }
+  }, []);
+
+  // Auto-refresh presets every time the user navigates back into this view
+  useFocusEffect(
+    useCallback(() => {
+      loadPresets();
+    }, [loadPresets])
+  );
+
+  // Open Custom Modal instead of iOS Prompt
+  const handleOpenEditModal = (type: 'fare' | 'lunch') => {
+    setEditingType(type);
+    setPresetInput(type === 'fare' ? fareAmount : lunchAmount);
+    setModalVisible(true);
+  };
+
+  // Save Preset from Modal
+  const handleSavePreset = async () => {
+    if (!presetInput || isNaN(Number(presetInput))) {
+      Alert.alert('Error', 'Please enter a valid number');
+      return;
+    }
+
+    const cleanAmount = Math.abs(parseFloat(presetInput)).toString();
+    const updatedFare = editingType === 'fare' ? cleanAmount : fareAmount;
+    const updatedLunch = editingType === 'lunch' ? cleanAmount : lunchAmount;
+
+    setFareAmount(updatedFare);
+    setLunchAmount(updatedLunch);
+
+    await LocalStorageService.savePresets({ fare: updatedFare, lunch: updatedLunch });
+
+    // Close & Reset Modal states
+    setModalVisible(false);
+    setEditingType(null);
+    setPresetInput('');
+  };
 
   // Calculate budget status for category
   const getBudgetStatus = () => {
     const limit = budgets[category];
     if (!limit || amount === '') return null;
     const val = parseFloat(amount);
-    if (val >= 0) return null; // Only warn for expenses
+    if (val >= 0) return null;
     const absAmount = Math.abs(val);
     return { limit, amount: absAmount, exceeds: absAmount > limit };
   };
 
-  // Handle add transaction
   const handleAddTransaction = async () => {
     if (!amount || isNaN(Number(amount))) {
       Alert.alert('Error', 'Please enter a valid amount');
@@ -66,7 +123,6 @@ export const AddTransactionScreen: React.FC<AddTransactionScreenProps> = ({
     const val = parseFloat(amount);
     const budgetStatus = getBudgetStatus();
 
-    // Show budget warning if applicable
     if (budgetStatus?.exceeds) {
       Alert.alert('Budget Warning', `This expense exceeds your ₱${budgetStatus.limit} limit for ${category}. Proceed?`, [
         { text: 'Cancel', style: 'cancel' },
@@ -93,6 +149,11 @@ export const AddTransactionScreen: React.FC<AddTransactionScreenProps> = ({
         user_id: userId!,
         created_at: transDate.toISOString(),
       } as any);
+
+      // This refreshes the local hook cache immediately on the current screen
+      if (typeof fetchTransactions === 'function') {
+        await fetchTransactions();
+      }
 
       Alert.alert('Success', 'Transaction saved!');
       setAmount('');
@@ -217,16 +278,21 @@ export const AddTransactionScreen: React.FC<AddTransactionScreenProps> = ({
           />
         </View>
 
-        {/* Quick Add Presets */}
+        {/* Quick Add Presets Section */}
         <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
-          <Text style={{ fontSize: 12, color: theme.secondaryText, fontWeight: '600', marginBottom: 8 }}>QUICK ADD</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={{ fontSize: 12, color: theme.secondaryText, fontWeight: '600' }}>QUICK ADD (Hold to Edit)</Text>
+          </View>
+
           <View style={{ flexDirection: 'row', gap: 8 }}>
+            {/* Fare Button */}
             <TouchableOpacity
               onPress={() => {
-                setAmount('-15');
+                setAmount(`-${fareAmount}`);
                 setCategory('Transport');
                 setDescription('Fare');
               }}
+              onLongPress={() => handleOpenEditModal('fare')}
               style={{
                 flex: 1,
                 backgroundColor: theme.card,
@@ -236,16 +302,21 @@ export const AddTransactionScreen: React.FC<AddTransactionScreenProps> = ({
                 borderColor: theme.border,
               }}
             >
-              <Text style={{ color: theme.text, fontSize: 12, fontWeight: '700' }}>🚌 Fare</Text>
-              <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '700', marginTop: 4 }}>-₱15</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ color: theme.text, fontSize: 12, fontWeight: '700' }}>🚌 Fare</Text>
+                <Ionicons name="pencil" size={12} color={theme.secondaryText} style={{ opacity: 0.5 }} />
+              </View>
+              <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '700', marginTop: 4 }}>-₱{fareAmount}</Text>
             </TouchableOpacity>
 
+            {/* Lunch Button */}
             <TouchableOpacity
               onPress={() => {
-                setAmount('-50');
+                setAmount(`-${lunchAmount}`);
                 setCategory('Food');
                 setDescription('Lunch');
               }}
+              onLongPress={() => handleOpenEditModal('lunch')}
               style={{
                 flex: 1,
                 backgroundColor: theme.card,
@@ -255,8 +326,11 @@ export const AddTransactionScreen: React.FC<AddTransactionScreenProps> = ({
                 borderColor: theme.border,
               }}
             >
-              <Text style={{ color: theme.text, fontSize: 12, fontWeight: '700' }}>🍱 Lunch</Text>
-              <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '700', marginTop: 4 }}>-₱50</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ color: theme.text, fontSize: 12, fontWeight: '700' }}>🍱 Lunch</Text>
+                <Ionicons name="pencil" size={12} color={theme.secondaryText} style={{ opacity: 0.5 }} />
+              </View>
+              <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '700', marginTop: 4 }}>-₱{lunchAmount}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -275,6 +349,50 @@ export const AddTransactionScreen: React.FC<AddTransactionScreenProps> = ({
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Cross-Platform Custom Edit Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={sharedStyles.modalOverlay}>
+          <View style={[sharedStyles.modalContent, { backgroundColor: theme.background }]}>
+            <Text style={[sharedStyles.modalTitle, { color: theme.text }]}>
+              Edit {editingType === 'fare' ? 'Fare' : 'Lunch'} Preset
+            </Text>
+
+            <TextInput
+              style={[
+                sharedStyles.input,
+                {
+                  backgroundColor: theme.input,
+                  color: theme.text,
+                  borderColor: theme.border,
+                  fontSize: 18,
+                  padding: 12,
+                  textAlign: 'center',
+                  marginBottom: 20
+                }
+              ]}
+              keyboardType="numeric"
+              value={presetInput}
+              onChangeText={setPresetInput}
+              autoFocus={true}
+            />
+
+            <View style={sharedStyles.modalButtons}>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Text style={{ color: theme.secondaryText, fontWeight: '600', fontSize: 16 }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSavePreset}>
+                <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 16 }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
