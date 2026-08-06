@@ -5,6 +5,7 @@
     "scheme": "tracklyapp",
     "version": "1.0.3",
     "orientation": "portrait",
+    "platforms": ["android", "ios"],
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -31,14 +32,23 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM",
+        "NOTIFICATIONS"
+      ]
     },
     "plugins": [
       "@react-native-community/datetimepicker",
-      "expo-router"
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/logo.png",
+          "color": "#ffffff"
+        }
+      ]
     ],
     "extra": {
       "eas": {

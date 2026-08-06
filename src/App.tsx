@@ -11,6 +11,7 @@ import { Themes } from './styles';
 import { Session } from './types';
 import { Alert } from 'react-native';
 import { AppShellProvider } from './context/AppShellContext';
+import { NotificationSettingsProvider } from './context/NotificationSettingsContext';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -59,6 +60,8 @@ export default function App() {
       handleAppUpdates();
     }
   }, [isUnlocked]);
+
+  
 
   const handleAppUpdates = async () => {
     // Prevent running in local development mode
@@ -178,16 +181,18 @@ export default function App() {
   // Show main app with navigation
   return (
     <SafeAreaProvider>
-      <AppShellProvider
-        value={{
-          userId: session?.user?.id,
-          themeMode,
-          onThemeChange: setThemeMode,
-          onSignOut: handleSignOut,
-        }}
-      >
-        <Slot />
-      </AppShellProvider>
+      <NotificationSettingsProvider>
+        <AppShellProvider
+          value={{
+            userId: session?.user?.id,
+            themeMode,
+            onThemeChange: setThemeMode,
+            onSignOut: handleSignOut,
+          }}
+        >
+          <Slot />
+        </AppShellProvider>
+      </NotificationSettingsProvider>
     </SafeAreaProvider>
   );
 }

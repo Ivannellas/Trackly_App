@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { sharedStyles, Themes } from '../styles';
 import { useSavingsGoals, useSubscriptions } from '../hooks';
 import { GenericModal, ModalTextInput } from '../components';
@@ -29,6 +30,7 @@ export const GoalsScreen: React.FC<GoalsScreenProps> = ({
   onSignOut,
 }) => {
   const theme = Themes[themeMode];
+  const router = useRouter();
   const { goals, addGoal, updateGoal, removeGoal } = useSavingsGoals();
   const { subscriptions, addSubscription, removeSubscription, updateSubscription } = useSubscriptions();
 
@@ -248,9 +250,14 @@ export const GoalsScreen: React.FC<GoalsScreenProps> = ({
         {/* Header */}
         <View style={[sharedStyles.header, { paddingHorizontal: 20, marginBottom: 24 }]}>
           <Text style={[sharedStyles.title, { color: theme.text }]}>Goals & Bills</Text>
-          <TouchableOpacity onPress={onSignOut}>
-            <Ionicons name="log-out" size={24} color={theme.accent} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity onPress={() => router.push('/notification-settings')}>
+              <Ionicons name="notifications-outline" size={22} color={theme.accent} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onSignOut}>
+              <Ionicons name="log-out" size={24} color={theme.accent} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Savings Goals Section */}
