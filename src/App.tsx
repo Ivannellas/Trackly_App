@@ -11,7 +11,7 @@ import { Themes } from './styles';
 import { Session } from './types';
 import { Alert } from 'react-native';
 import { AppShellProvider } from './context/AppShellContext';
-import { NotificationSettingsProvider } from './context/NotificationSettingsContext';
+import { initAutoNotifications } from './services/notificationService';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -57,6 +57,9 @@ export default function App() {
   // AUTOMATIC UPDATE CHECKER (Triggers only after app is unlocked)
   useEffect(() => {
     if (isUnlocked) {
+      initAutoNotifications().catch((error) => {
+        console.error('Error initializing notifications:', error);
+      });
       handleAppUpdates();
     }
   }, [isUnlocked]);
@@ -73,7 +76,7 @@ export default function App() {
       if (update.isAvailable) {
         Alert.alert(
           'New Update Available!',
-          'Trackly has a new version with improvements and new features. Would you like to apply it now?',
+          'Trackly has a new new features and improvements. Would you like to apply it now?',
           [
             { text: 'Later', style: 'cancel' },
             {
@@ -181,18 +184,16 @@ export default function App() {
   // Show main app with navigation
   return (
     <SafeAreaProvider>
-      <NotificationSettingsProvider>
-        <AppShellProvider
-          value={{
-            userId: session?.user?.id,
-            themeMode,
-            onThemeChange: setThemeMode,
-            onSignOut: handleSignOut,
-          }}
-        >
-          <Slot />
-        </AppShellProvider>
-      </NotificationSettingsProvider>
+      <AppShellProvider
+        value={{
+          userId: session?.user?.id,
+          themeMode,
+          onThemeChange: setThemeMode,
+          onSignOut: handleSignOut,
+        }}
+      >
+        <Slot />
+      </AppShellProvider>
     </SafeAreaProvider>
   );
 }

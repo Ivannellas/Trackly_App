@@ -1,6 +1,7 @@
 // Transaction and related data service
 import { supabase } from './supabase';
 import { Transaction, Category, BudgetLimit, Subscription, SavingsGoal } from '../types';
+import { onExpenseAdded } from './notificationService';
 
 export const TransactionService = {
   // Fetch all transactions for a user
@@ -16,6 +17,9 @@ export const TransactionService = {
   // Add a new transaction
   async addTransaction(transaction: Omit<Transaction, 'id'>) {
     const { error } = await supabase.from('transactions').insert([transaction]);
+    if (!error && transaction.amount < 0) {
+      await onExpenseAdded(transaction.created_at);
+    }
     return { error };
   },
 

@@ -20,7 +20,7 @@
     "updates": {
       "url": "https://u.expo.dev/1c043622-ec64-4f48-9dfe-f10ce375ca7b",
       "enabled": true,
-      "checkOnLaunch": "NEVER"
+      "checkOnLaunch": "ALWAYS"
     },
     "ios": {
       "supportsTablet": true
