@@ -226,6 +226,9 @@ export const GoalsScreen: React.FC<GoalsScreenProps> = ({
       category: selectedBill.category || 'Subscriptions',
       user_id: userId,
       created_at: new Date().toISOString(),
+      bucket: 'needs',
+      type: 'expense',
+      group_id: null,
     });
 
     if (error) {

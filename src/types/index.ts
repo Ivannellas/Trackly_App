@@ -1,5 +1,8 @@
 // TypeScript interfaces and types for the Budget Tracker app
 
+export type BucketName = 'needs' | 'wants' | 'others';
+export type TransactionType = 'income' | 'expense' | 'transfer';
+
 export interface Transaction {
   id: string;
   amount: number;
@@ -7,6 +10,16 @@ export interface Transaction {
   category: string;
   user_id: string;
   created_at: string;
+  bucket: BucketName;
+  type: TransactionType;
+  group_id?: string | null;
+}
+
+export interface Profile {
+  id: string;
+  auto_split_needs: number;
+  auto_split_wants: number;
+  auto_split_others: number;
 }
 
 export interface Category {

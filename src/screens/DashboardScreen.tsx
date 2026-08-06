@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'; 
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,9 +20,14 @@ import {
 import {
   TransactionItem,
   ChartHeader,
+  FlippableBalanceCard,
+  AutoSplitSettingsModal,
+  TransferModal,
 } from '../components';
-import { Theme, Transaction } from '../types';
+import { Theme, Transaction, Profile } from '../types';
 import { useNavigation, useFocusEffect } from '@react-navigation/native'; // 👈 Added useFocusEffect
+import { calculateTotals } from '../utils/budgetHelpers';
+import { TransactionService } from '../services';
 
 type ChartViewType = 'Daily' | 'Weekly' | 'Monthly';
 
@@ -46,23 +51,27 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [chartView, setChartView] = useState<ChartViewType>('Weekly');
   const [refreshing, setRefreshing] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [showAutoSplitSettings, setShowAutoSplitSettings] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
 
   // Hooks
   const { transactions, fetchTransactions, deleteTransaction } = useTransactions(userId);
   const { budgets } = useBudgets();
   const { totalIncome, totalExpense } = useIncomeExpense(transactions, selectedDate);
+  const { totalBalance, buckets } = calculateTotals(transactions);
 
   // 👈 Replaced old useEffect with useFocusEffect to trigger reload on view entry
   useFocusEffect(
     useCallback(() => {
       if (userId && typeof fetchTransactions === 'function') {
         fetchTransactions();
+        TransactionService.getProfile(userId)
+          .then((savedProfile) => setProfile(savedProfile))
+          .catch((error) => console.error('Failed to load profile:', error));
       }
     }, [userId, fetchTransactions])
   );
-
-  // Calculate balance
-  const totalBalance = transactions.reduce((sum, item) => sum + parseFloat(item.amount.toString()), 0);
 
   // Filter transactions by month
   const transactionsThisMonth = transactions.filter((t) => {
@@ -92,7 +101,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     const categoryTotals: { [key: string]: number } = {};
 
     transactionsThisMonth.forEach((t) => {
-      if (t.amount < 0) {
+      if (t.type === 'expense' || t.amount < 0) {
         const cat = t.category || 'General';
         categoryTotals[cat] = (categoryTotals[cat] || 0) + Math.abs(t.amount);
       }
@@ -115,7 +124,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       data = [0, 0, 0, 0, 0, 0, 0];
       transactionsThisMonth.forEach((t) => {
-        if (t.amount < 0) {
+        if (t.type === 'expense' || t.amount < 0) {
           const day = new Date(t.created_at).getDay();
           const index = day === 0 ? 6 : day - 1;
           data[index] += Math.abs(t.amount);
@@ -125,17 +134,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       labels = ['W1', 'W2', 'W3', 'W4'];
       data = [0, 0, 0, 0];
       transactionsThisMonth.forEach((t) => {
-        if (t.amount < 0) {
+        if (t.type === 'expense' || t.amount < 0) {
           const date = new Date(t.created_at).getDate();
           const idx = Math.min(Math.floor((date - 1) / 7), 3);
           data[idx] += Math.abs(t.amount);
         }
       });
     } else if (chartView === 'Monthly') {
-      labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+      labels = ['July', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
       data = [0, 0, 0, 0, 0, 0];
       transactions.forEach((t) => {
-        if (t.amount < 0) {
+        if (t.type === 'expense' || t.amount < 0) {
           const month = new Date(t.created_at).getMonth();
           if (month < 6) data[month] += Math.abs(t.amount);
         }
@@ -149,7 +158,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     setRefreshing(true);
     try {
       if (userId && typeof fetchTransactions === 'function') {
-        await fetchTransactions(); 
+        await fetchTransactions();
       }
     } catch (error) {
       console.error("Refresh error:", error);
@@ -186,58 +195,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
         {/* Premium Balance Card with LinearGradient */}
         <View style={{ marginHorizontal: 20, marginBottom: 15 }}>
-          <LinearGradient
-            colors={['#4F46E5', '#7C3AED']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{
-              borderRadius: 24,
-              padding: 24,
-              minHeight: 180,
-              shadowColor: '#4F46E5',
-              shadowOpacity: 0.3,
-              shadowOffset: { width: 0, height: 10 },
-              shadowRadius: 20,
-              elevation: 12,
-            }}
-          >
-            <Text style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 8, fontWeight: '500' }}>Total Balance</Text>
-            <Text style={{ fontSize: 42, color: '#fff', fontWeight: '700', marginBottom: 24 }}>₱{totalBalance.toFixed(2)}</Text>
-
-            {/* Mini Stats */}
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-              <View style={{ flex: 1, marginRight: 12 }}>
-                <Text style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.7)', marginBottom: 6 }}>Income</Text>
-                <Text
-                  style={{ fontSize: 18, color: '#10B981', fontWeight: '700' }}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                >
-                  +₱{totalIncome.toFixed(2)}
-                </Text>
-              </View>
-
-              <View
-                style={{
-                  width: 1,
-                  height: 45,
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  marginHorizontal: 16,
-                }}
-              />
-
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.7)', marginBottom: 6 }}>Expense</Text>
-                <Text
-                  style={{ fontSize: 18, color: '#FCA5A5', fontWeight: '700' }}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                >
-                  -₱{totalExpense.toFixed(2)}
-                </Text>
-              </View>
-            </View>
-          </LinearGradient>
+          <FlippableBalanceCard
+            totalBalance={totalBalance}
+            totalIncome={totalIncome}
+            totalExpense={totalExpense}
+            buckets={buckets}
+            theme={theme}
+            onTransferPress={() => setShowTransferModal(true)}
+            onSettingsPress={() => setShowAutoSplitSettings(true)}
+          />
         </View>
 
         {/* Month Selector */}
@@ -316,6 +282,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             </Text>
           )}
         </View>
+
+        <AutoSplitSettingsModal
+          visible={showAutoSplitSettings}
+          userId={userId}
+          profile={profile}
+          theme={theme}
+          onClose={() => setShowAutoSplitSettings(false)}
+          onSaved={setProfile}
+        />
+
+        <TransferModal
+          visible={showTransferModal}
+          userId={userId}
+          theme={theme}
+          onClose={() => setShowTransferModal(false)}
+          onCompleted={fetchTransactions}
+        />
 
         {/* Recent Activity */}
         <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
