@@ -5,7 +5,10 @@
     "scheme": "tracklyapp",
     "version": "1.0.3",
     "orientation": "portrait",
-    "platforms": ["android", "ios"],
+    "platforms": [
+      "android",
+      "ios"
+    ],
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -23,7 +26,11 @@
       "checkOnLaunch": "ALWAYS"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ivannellas.trackly",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.ivannellas.trackly",
